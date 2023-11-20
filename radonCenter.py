@@ -94,11 +94,16 @@ def searchCenter(image, x_ctr_assign, y_ctr_assign, size_window, m = 0.2, M = 0.
     calculate the cost function of Radon Transform (Pueyo et al., 2015), 
     then interpolate the cost function, 
     get the center which corresponds to the maximum value in the cost function.
+    For stars that are outside of the detector along a particular axis, give a
+    number out of bounds for that axis as the initial guess (i.e. -1 if below
+    the axis, or Npix+1 if above the axis for a detector axis Npix long). 
     
     Input:
         image: 2d array.
-        x_ctr_assign: the assigned x-center, or starting x-position; for STIS, the "CRPIX1" header is suggested.
-        x_ctr_assign: the assigned y-center, or starting y-position; for STIS, the "CRPIX2" header is suggested.
+        x_ctr_assign: int | float
+          the assigned x-center, or starting x-position; for STIS, the "CRPIX1" header is suggested.
+        y_ctr_assign: int | float
+          the assigned y-center, or starting y-position; for STIS, the "CRPIX2" header is suggested.
         size_window: half width of the sampling region; size_window = image.shape[0]/2 is suggested.
             m & M:  The sampling region will be (-M*size_window, -m*size_window)U(m*size_window, M*size_window).
         size_cost: search the center within +/- size_cost pixels, i.e., a square region.
@@ -174,3 +179,4 @@ def searchCenter(image, x_ctr_assign, y_ctr_assign, size_window, m = 0.2, M = 0.
     x_cen = round(x_cen, decimals)
     y_cen = round(y_cen, decimals)
     return x_cen, y_cen
+
