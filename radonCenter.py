@@ -7,6 +7,7 @@ def samplingRegion(size_window, theta = [45, 135], m = 0.2, M = 0.8, step = 1, d
     Input:
         size_window: the radius of the sampling region. The whole region should thus have a length of 2*size_window+1.
         theta: the angle range of the sampling region, default: [45, 135] for the anti-diagonal and diagonal directions.
+            measured from 0 along the x-axis and positive going counterclockwise.
         m: the minimum fraction of size_window, default: 0.2 (i.e., 20%). In this way, the saturated region can be excluded.
         M: the maximum fraction of size_window, default: 0.8 (i.e., 80%). Just in case if there's some star along the diagonals.
         step: the seperation between sampling dots (units: pixel), default value is 1pix.
@@ -32,7 +33,8 @@ def samplingRegion(size_window, theta = [45, 135], m = 0.2, M = 0.8, step = 1, d
     if ray:
         zeroDegXs = np.arange(int(size_window*m), int(size_window*M) + 0.1 * step, step)
     else:
-        zeroDegXs = np.append(np.arange(-int(size_window*M), -int(size_window*m) + 0.1 * step, step), np.arange(int(size_window*m), int(size_window*M) + 0.1 * step, step))
+        zeroDegXs = np.append(np.arange(-int(size_window*M), -int(size_window*m) + 0.1 * step, step),
+                              np.arange(int(size_window*m), int(size_window*M) + 0.1 * step, step))
     #create the column indecies if theta = 0
     zeroDegYs = np.zeros(zeroDegXs.size)
     
