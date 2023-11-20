@@ -38,7 +38,15 @@ def smoothCostFunction(costFunction, halfWidth = 0):
     return newFunction
 
 
-def samplingRegion(size_window, theta = [45, 135], m = 0.2, M = 0.8, step = 1, decimals = 2, ray = False):
+def samplingRegion( 
+        size_window : int,
+        theta : float | list[float] = [45, 135],
+        m : float = 0.0,
+        M : float = 1.0,
+        step : int = 1,
+        decimals : int = 2,
+        ray : bool = True,
+) -> tuple[np.array, np.array]:
     """This function returns all the coordinates of the sampling region, the center of the region is (0,0)
     When applying to matrices, don't forget to SHIFT THE CENTER!
     Input:
@@ -51,8 +59,8 @@ def samplingRegion(size_window, theta = [45, 135], m = 0.2, M = 0.8, step = 1, d
         decimals: the precisoin of the sampling dots (units: pixel), default value is 0.01pix.
         ray: only half of the line?
     Output: (xs, ys)
-        xs: x indecies, flattend.
-        ys: y indecies, flattend.
+        xs: x indices, flattened.
+        ys: y indices, flattened.
     Example:
         1. If you call "xs, ys = samplingRegion(5)", you will get:
         xs: array([-2.83, -2.12, -1.41, -0.71,  0.71,  1.41,  2.12,  2.83,  2.83, 2.12,  1.41,  0.71, -0.71, -1.41, -2.12, -2.83]
@@ -61,12 +69,11 @@ def samplingRegion(size_window, theta = [45, 135], m = 0.2, M = 0.8, step = 1, d
         xs: array([ 0.71,  1.41,  2.12,  2.83, -0.71, -1.41, -2.12, -2.83])
         ys: array([ 0.71,  1.41,  2.12,  2.83,  0.71,  1.41,  2.12,  2.83])
     """
-    
+    #When there is only one angle
     if np.asarray(theta).shape == ():
         theta = [theta]
-    #When there is only one angle
-        
     theta = np.array(theta)
+
     if ray:
         zeroDegXs = np.arange(int(size_window*m), int(size_window*M) + 0.1 * step, step)
     else:
@@ -103,7 +110,7 @@ def searchOffCenter(
         ray : bool = False,
         smooth : int = 2,
         decimals : int = 2
-) -> tuple(float, float) :
+) -> tuple[float, float] :
     """
     Docstring goes here
 
@@ -137,6 +144,7 @@ def searchOffCenter(
     (x_cen, y_cen) : tuple of the best guess for the center
 
     """
+
     (y_len, x_len) = image.shape
 
     x_range = np.arange(x_len)
@@ -160,8 +168,64 @@ def searchOffCenter(
     y_centers = np.round(y_centers, decimals)
     costFunction = np.zeros((x_centers.shape[0], y_centers.shape[0]))
 
+    # if the star is outside the image, you need to add this shift to search coordinates
+    # find the outside edge of the search window
+    # we only want to correct for the x offset
+    image_offset = np.array([x_ctr_assign-size_window, 0])
     # get the pixels along the ray
-    # not sure why you change the window 
     size_window = size_window - size_cost
     (xs, ys) = samplingRegion(size_window, theta, m = m, M = M, ray = ray)
-    #the center of the sampling region is (0,0), don't forget to shift the center!
+    #the center of the sampling region is (0,0), so don't forget to shift the center!
+
+
+    for j, x0 in enumerate(x_centers):
+        for i, y0 in enumerate(y_centers):
+            value = 0
+            
+            for x1, y1 in zip(xs, ys):
+                #Shifting the center one by one, this now is the coordinate of the RAW IMAGE
+                x = x0 - image_offset[0] + x1
+                y = y0 - image_offset[1] + y1
+                value += image_interp(x, y)
+        
+            costFunction[i, j] = value  #Create the cost function
+
+    #Smooth the cost function
+    costFunction = smoothCostFunction(costFunction, halfWidth = smooth)
+    
+    # interpolate the cost function onto the test values of the centers
+    interp_costfunction = interp2d(x_centers, y_centers, costFunction, kind='cubic')
+
+    for decimal in range(1, decimals+1):
+        precision = 10**(-decimal)
+        if decimal >= 2:
+            size_cost = 10*precision
+        x_centers_new = np.arange(x_ctr_assign - size_cost,
+                                  x_ctr_assign + size_cost + precision/10.0,
+                                  precision)
+        x_centers_new = np.round(x_centers_new, decimals=decimal)
+        y_centers_new = np.arange(y_ctr_assign - size_cost,
+                                  y_ctr_assign + size_cost + precision/10.0,
+                                  precision)
+        y_centers_new = np.round(y_centers_new, decimals=decimal)
+    
+        x_cen = 0
+        y_cen = 0
+        maxcostfunction = 0
+        value = np.zeros((y_centers_new.shape[0], x_centers_new.shape[0]))
+    
+        for j, x in enumerate(x_centers_new):
+            for i, y in enumerate(y_centers_new):
+                value[i, j] = interp_costfunction(x, y)
+        
+        idx = np.where(value == np.max(value))
+        #Just in case when there are multile maxima, then use the average of them. 
+        x_cen = np.mean(x_centers_new[idx[1]])
+        y_cen = np.mean(y_centers_new[idx[0]])
+        
+        x_ctr_assign = x_cen
+        y_ctr_assign = y_cen    
+       
+    x_cen = round(x_cen, decimals)
+    y_cen = round(y_cen, decimals)
+    return x_cen, y_cen
