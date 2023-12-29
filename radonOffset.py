@@ -1,8 +1,12 @@
 """
 Same as radonCenter, but can be used on stars that are outside the FOV
+
+Author: Jonathan Aguilar, jaguilar@stsci.edu
 """
+
 import numpy as np
-from scipy.interpolate import interp2d
+from scipy.interpolate import interp2d, RegularGridInterpolator
+import pandas as pd
 
 def smoothCostFunction(costFunction, halfWidth = 0):
     """
@@ -229,3 +233,101 @@ def searchOffCenter(
     x_cen = round(x_cen, decimals)
     y_cen = round(y_cen, decimals)
     return x_cen, y_cen
+
+
+def check_mask(x, y, mask):
+    """
+    For floating point coordinates (x, y), check to see if they correspond
+    to masked pixels or not
+    """
+    xint, yint = np.floor((x, y)).astype(int)
+    is_masked = mask[yint, xint]
+    return is_masked
+
+
+def find_angle(
+        img : np.ndarray | np.ma.core.MaskedArray,
+        center : tuple[float, float],
+        thetas : np.ndarray,
+) -> tuple[float, float] :
+    """
+    Given an image and a center, compute the line integral over the range of
+    angles specificed by `thetas`. Return the angle corresponding to the
+    greatest value of the integral. It is recommended that you supply a masked
+    array that masks out pixels you do not want to include in the integral.
+
+    Parameters
+    ----------
+    img : np.ndarray | np.ma.core.MaskedArray
+      2d image array. If a masked array is not provided, an empty mask will be
+      created.
+    center : tuple(x, y)
+      0-indexed coordinate of the nulling position
+    thetas : np.array
+      range of angles to test, in degrees.
+      Doesn't do any optimization, just returns the best one.
+    Output
+    ------
+    theta : angle in degrees of the glowstick
+    integral : the computed flux of the glowstick
+
+    """
+    if not hasattr(img, "mask"):
+        img = np.ma.masked_array(img, mask=False)
+
+    # we're going to find the glowstick location by using the radon transform
+    # to find the right angle
+    # to start, we need to generate series of x, y positions at which to measure the flux
+    x0, y0 = center
+    theta_rad = np.deg2rad(thetas)
+    x = np.arange(0, img.shape[1])
+    # one slope for every theta
+    m = np.tan(theta_rad)
+    # project the slopes like this to generate all the lines at once
+    y = np.outer(m, (x - (x0))) + (y0)
+
+    # for interpolation compatibility, make a copy in which you replace the nan's with 0
+    # this is a gamble that it won't screw up your integral but it's a small risk
+    img_nan = img.copy()
+    img_nan[np.where(np.isnan(img))] = 0
+    img_interp = RegularGridInterpolator((np.arange(img.shape[1]), np.arange(img.shape[0])),
+                                         img_nan,
+                                         method = 'cubic')
+    del img_nan
+    # radon_sums = pd.Series(np.zeros_like(thetas, dtype=float))
+    # # for each value of theta, sum the values along the line
+    # for t in radon_sums.index:
+    #     for i, j in zip(x, y[t]):
+    #         # check if the coordinate is masked 
+    #         try:
+    #             is_masked = img.mask[int(np.floor(j-1)), i-1]
+    #         except:
+    #             is_masked = False
+    #         if is_masked == True:
+    #             # pixel is masked, do not add to total
+    #             continue
+    #         else:
+    #             # coordinate is not masked; add to total
+    #             radon_sums[t] += img_interp(i, j)
+    # max_index = radon_sums.idxmax()
+    # max_flux = radon_sums[max_index]
+    # best_theta = thetas[max_index]
+
+
+    # zip all the x, y coordinates together for each theta in a dict for tracking
+    theta_lines = {i: {'theta': t, 'line': l} for i, (t, l) in enumerate(zip(thetas, [np.array(list(zip(x, y_i))) for y_i in y]))}
+    radon_sums = {}
+    for i, line in theta_lines.items():
+        # only compute values for unmasked coordinates
+        is_masked = check_mask(*line['line'].T, img.mask)
+        new_line = line['line'][~is_masked]
+        radon_sums[i] = {
+            # record the angle
+            'theta': line['theta'],
+            # interpolate the image and sum
+            'sum': np.nansum(img_interp(new_line))
+        }
+    radon_sums = pd.DataFrame.from_dict(radon_sums, orient='index')
+    max_index = radon_sums['sum'].idxmax()
+    max_flux, best_theta = radon_sums.loc[max_index, ['sum', 'theta']]
+    return best_theta, max_flux
