@@ -156,8 +156,14 @@ def searchCenter(image, x_ctr_assign, y_ctr_assign, size_window, m = 0.2, M = 0.
         precision = 10**(-decimal)
         if decimal >= 2:
             size_cost = 10*precision
-        x_centers_new = np.round(np.arange(x_ctr_assign - size_cost, x_ctr_assign + size_cost + precision/10.0, precision), decimals=decimal)
-        y_centers_new = np.round(np.arange(y_ctr_assign - size_cost, y_ctr_assign + size_cost + precision/10.0, precision), decimals=decimal)
+        x_centers_new = np.round(np.arange(x_ctr_assign - size_cost,
+                                           x_ctr_assign + size_cost + precision/10.0,
+                                           precision),
+                                 decimals=decimal)
+        y_centers_new = np.round(np.arange(y_ctr_assign - size_cost,
+                                           y_ctr_assign + size_cost + precision/10.0,
+                                           precision),
+                                 decimals=decimal)
     
         x_cen = 0
         y_cen = 0
@@ -168,10 +174,10 @@ def searchCenter(image, x_ctr_assign, y_ctr_assign, size_window, m = 0.2, M = 0.
             for i, y in enumerate(y_centers_new):
                 value[i, j] = interp_costfunction(x, y)
         
-        idx = np.where(value == np.max(value))
+        idx = np.where(value == np.nanmax(value))
         #Just in case when there are multile maxima, then use the average of them. 
-        x_cen = np.mean(x_centers_new[idx[1]])
-        y_cen = np.mean(y_centers_new[idx[0]])
+        x_cen = np.nanmean(x_centers_new[idx[1]])
+        y_cen = np.nanmean(y_centers_new[idx[0]])
         
         x_ctr_assign = x_cen
         y_ctr_assign = y_cen    
